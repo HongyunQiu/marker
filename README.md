@@ -44,7 +44,27 @@ var editor = EditorJS({
 
 ## Config Params
 
-This Tool has no config params
+- `colors` (string[]) - optional. Available color names or CSS colors used in the palette. Defaults to `['yellow', 'green', 'blue', 'pink', 'orange', 'purple']`.
+- `defaultColor` (string) - optional. Initially selected color. Defaults to `'yellow'`.
+
+Example:
+
+```javascript
+var editor = EditorJS({
+  tools: {
+    marker: {
+      class: Marker,
+      shortcut: 'CMD+SHIFT+M',
+      config: {
+        colors: ['yellow', 'green', 'blue', 'pink'],
+        defaultColor: 'yellow',
+      }
+    }
+  }
+});
+```
+
+When you click the Marker tool in the inline toolbar, a color palette appears. The selected color is applied to new highlights and can be changed for existing highlights.
 
 ## Output data
 
@@ -54,7 +74,7 @@ Marked text will be wrapped with a `mark` tag with an `cdx-marker` class.
 {
     "type" : "text",
     "data" : {
-        "text" : "Create a directory for your module, enter it and run <mark class=\"cdx-marker\">npm init</mark> command."
+        "text" : "Create a directory for your module, enter it and run <mark class=\"cdx-marker\" data-color=\"yellow\">npm init</mark> command."
     }
 }
 ```

@@ -22,8 +22,9 @@ import { IconMarker } from '@codexteam/icons'
   /**
    * @param {{api: object}}  - Editor.js API
    */
-  constructor({api}) {
+  constructor({api, config}) {
     this.api = api;
+    this.config = config || {};
 
     /**
      * Toolbar Button
@@ -31,6 +32,11 @@ import { IconMarker } from '@codexteam/icons'
      * @type {HTMLElement|null}
      */
     this.button = null;
+    /**
+     * Actions wrapper element (colors palette)
+     * @type {HTMLElement|null}
+     */
+    this.actions = null;
 
     /**
      * Tag represented the term
@@ -46,6 +52,25 @@ import { IconMarker } from '@codexteam/icons'
       base: this.api.styles.inlineToolButton,
       active: this.api.styles.inlineToolButtonActive
     };
+
+    /**
+     * Available colors and current color
+     */
+    this.availableColors = this.config.colors || ['yellow', 'green', 'blue', 'pink', 'orange', 'purple'];
+    this.defaultColor = this.config.defaultColor || 'yellow';
+    this.currentColor = this.defaultColor;
+
+    /**
+     * Cache of color buttons for active state toggling
+     * @type {Record<string, HTMLElement>}
+     */
+    this.colorButtonsByName = {};
+
+    /**
+     * Flow control for deferred color selection
+     */
+    this.awaitingColorSelection = false;
+    this.pendingRange = null;
   }
 
   /**
@@ -72,6 +97,70 @@ import { IconMarker } from '@codexteam/icons'
   }
 
   /**
+   * Render actions (color palette) shown in the Inline Toolbar
+   * @return {HTMLElement}
+   */
+  renderActions() {
+    const wrapper = document.createElement('div');
+    wrapper.classList.add('cdx-marker-actions');
+
+    this.colorButtonsByName = {};
+
+    this.availableColors.forEach((name) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.classList.add('cdx-marker-color');
+      btn.setAttribute('data-color', name);
+      btn.title = name;
+      // visual preview dot
+      btn.style.background = this.#previewColorFor(name);
+
+      btn.addEventListener('click', () => {
+        this.currentColor = name;
+        this.#updateActiveColorButton();
+
+        // Prefer applying to the full pending selection if present (tool-initiated)
+        if (this.pendingRange) {
+          // Restore selection to the pending range before wrapping
+          const sel = window.getSelection();
+          if (sel) {
+            sel.removeAllRanges();
+            sel.addRange(this.pendingRange);
+          }
+
+          this.wrap(this.pendingRange);
+
+          this.awaitingColorSelection = false;
+          this.pendingRange = null;
+
+          if (this.api.inlineToolbar && typeof this.api.inlineToolbar.close === 'function') {
+            this.api.inlineToolbar.close();
+          }
+          return;
+        }
+
+        // Otherwise, if selection is already inside a single highlighted tag, just recolor it
+        const termTag = this.api.selection.findParentTag(this.tag, Marker.CSS);
+        if (termTag) {
+          termTag.setAttribute('data-color', this.currentColor);
+          if (this.api.inlineToolbar && typeof this.api.inlineToolbar.close === 'function') {
+            this.api.inlineToolbar.close();
+          }
+          return;
+        }
+      });
+
+      wrapper.appendChild(btn);
+      this.colorButtonsByName[name] = btn;
+    });
+
+    this.actions = wrapper;
+    this.#updateActiveColorButton();
+
+    return wrapper;
+  }
+
+  /**
    * Wrap/Unwrap selected fragment
    *
    * @param {Range} range - selected fragment
@@ -84,12 +173,32 @@ import { IconMarker } from '@codexteam/icons'
     let termWrapper = this.api.selection.findParentTag(this.tag, Marker.CSS);
 
     /**
-     * If start or end of selection is in the highlighted block
+     * If selection is already inside a marker — clicking the tool should UNWRAP (cancel marker)
      */
     if (termWrapper) {
       this.unwrap(termWrapper);
-    } else {
-      this.wrap(range);
+      this.awaitingColorSelection = false;
+      this.pendingRange = null;
+
+      if (this.api.inlineToolbar && typeof this.api.inlineToolbar.close === 'function') {
+        this.api.inlineToolbar.close();
+      }
+      return;
+    }
+
+    /**
+     * Otherwise, we are applying a new marker — defer until user picks a color
+     * Keep palette visible for color selection
+     */
+    if (!this.awaitingColorSelection) {
+      this.awaitingColorSelection = true;
+      this.pendingRange = range.cloneRange();
+
+      // Ensure default color is used for new wraps unless user changes it
+      this.currentColor = this.defaultColor;
+
+      // Do not modify content now
+      return;
     }
   }
 
@@ -105,6 +214,7 @@ import { IconMarker } from '@codexteam/icons'
     let marker = document.createElement(this.tag);
 
     marker.classList.add(Marker.CSS);
+    marker.setAttribute('data-color', this.currentColor);
 
     /**
      * SurroundContent throws an error if the Range splits a non-Text node with only one of its boundary points
@@ -112,7 +222,10 @@ import { IconMarker } from '@codexteam/icons'
      *
      * // range.surroundContents(span);
      */
-    marker.appendChild(range.extractContents());
+    const extracted = range.extractContents();
+    // Strip any existing markers inside the extracted fragment to avoid nested/old marks
+    this.#stripMarkersFromFragment(extracted);
+    marker.appendChild(extracted);
     range.insertNode(marker);
 
     /**
@@ -161,6 +274,15 @@ import { IconMarker } from '@codexteam/icons'
     const termTag = this.api.selection.findParentTag(this.tag, Marker.CSS);
 
     this.button.classList.toggle(this.iconClasses.active, !!termTag);
+
+    // Sync current color with selection if inside a marked tag
+    if (termTag && termTag.getAttribute) {
+      const colorFromNode = termTag.getAttribute('data-color');
+      if (colorFromNode && this.availableColors.includes(colorFromNode)) {
+        this.currentColor = colorFromNode;
+      }
+    }
+    this.#updateActiveColorButton();
   }
 
   /**
@@ -173,14 +295,75 @@ import { IconMarker } from '@codexteam/icons'
 
   /**
    * Sanitizer rule
-   * @return {{mark: {class: string}}}
+   * @return {{mark: {class: (boolean|*), 'data-color': boolean}}}
    */
   static get sanitize() {
     return {
       mark: {
-        class: Marker.CSS
+        class: true,
+        'data-color': true
       }
     };
+  }
+
+  /**
+   * Private: update active state for color buttons
+   */
+  #updateActiveColorButton() {
+    if (!this.actions) {
+      return;
+    }
+    Object.entries(this.colorButtonsByName).forEach(([name, btn]) => {
+      if (name === this.currentColor) {
+        btn.classList.add('is-active');
+      } else {
+        btn.classList.remove('is-active');
+      }
+    });
+  }
+
+  /**
+   * Private: map color name to preview color (solid) for the palette button
+   * @param {string} name
+   * @return {string}
+   */
+  #previewColorFor(name) {
+    switch (name) {
+      case 'yellow': return '#F5EB6F';
+      case 'green': return '#4CAF50';
+      case 'blue': return '#2196F3';
+      case 'pink': return '#E91E63';
+      case 'orange': return '#FF9800';
+      case 'purple': return '#9C27B0';
+      default: return name; // allow custom CSS color strings
+    }
+  }
+
+  /**
+   * Private: remove existing marker tags from a DocumentFragment before re-wrapping
+   * @param {DocumentFragment} fragment
+   */
+  #stripMarkersFromFragment(fragment) {
+    if (!fragment) {
+      return;
+    }
+
+    // Find all existing <mark class="cdx-marker"> nodes within the fragment
+    const nodes = typeof fragment.querySelectorAll === 'function'
+      ? fragment.querySelectorAll(`mark.${Marker.CSS}`)
+      : [];
+
+    nodes.forEach((node) => {
+      const parent = node.parentNode;
+      if (!parent) {
+        return;
+      }
+      // Move children out of the mark, then remove the mark element
+      while (node.firstChild) {
+        parent.insertBefore(node.firstChild, node);
+      }
+      parent.removeChild(node);
+    });
   }
 }
 

@@ -2,3 +2,43 @@
   background: rgba(245,235,111,0.29);
   padding: 3px 0;
 }
+
+/* Color variants via data attribute */
+.cdx-marker[data-color="yellow"] {
+  background: rgba(245,235,111,0.29);
+}
+.cdx-marker[data-color="green"] {
+  background: rgba(76,175,80,0.25);
+}
+.cdx-marker[data-color="blue"] {
+  background: rgba(33,150,243,0.25);
+}
+.cdx-marker[data-color="pink"] {
+  background: rgba(233,30,99,0.25);
+}
+.cdx-marker[data-color="orange"] {
+  background: rgba(255,152,0,0.25);
+}
+.cdx-marker[data-color="purple"] {
+  background: rgba(156,39,176,0.25);
+}
+
+/* Inline Toolbar actions (color palette) */
+.cdx-marker-actions {
+  display: flex;
+  gap: 6px;
+  padding: 4px;
+  align-items: center;
+}
+.cdx-marker-color {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+  padding: 0;
+  outline: none;
+}
+.cdx-marker-color.is-active {
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.15);
+}
