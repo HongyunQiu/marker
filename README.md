@@ -46,6 +46,7 @@ var editor = EditorJS({
 
 - `colors` (string[]) - optional. Available color names or CSS colors used in the palette. Defaults to `['yellow', 'green', 'blue', 'pink', 'orange', 'purple']`.
 - `defaultColor` (string) - optional. Initially selected color. Defaults to `'yellow'`.
+- `columns` (number) - optional. Number of columns in the color palette grid. Defaults to `7`.
 
 Example:
 
@@ -58,6 +59,7 @@ var editor = EditorJS({
       config: {
         colors: ['yellow', 'green', 'blue', 'pink'],
         defaultColor: 'yellow',
+        columns: 7,
       }
     }
   }

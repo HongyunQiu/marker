@@ -27,6 +27,12 @@ import { IconMarker } from '@codexteam/icons'
     this.config = config || {};
 
     /**
+     * Grid columns for color palette
+     * @type {number}
+     */
+    this.columns = typeof this.config.columns === 'number' ? this.config.columns : 7;
+
+    /**
      * Toolbar Button
      *
      * @type {HTMLElement|null}
@@ -103,6 +109,8 @@ import { IconMarker } from '@codexteam/icons'
   renderActions() {
     const wrapper = document.createElement('div');
     wrapper.classList.add('cdx-marker-actions');
+    // Align with reference: fix number of columns, each cell 30px
+    wrapper.style.gridTemplateColumns = `repeat(${this.columns}, 30px)`;
 
     this.colorButtonsByName = {};
 
