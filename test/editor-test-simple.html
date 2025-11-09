@@ -140,7 +140,11 @@
                             },
                             marker: {
                                 class: window.Marker,
-                                shortcut: 'CMD+SHIFT+M'
+                                config: {
+                                  colors: ['yellow', 'green', 'pink', 'orange', 'purple'],
+                                  defaultColor: 'yellow',
+                                  columns: 5,
+                                }
                             }
                         },
                         data: {
